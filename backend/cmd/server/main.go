@@ -37,7 +37,7 @@ func main() {
 	authService := services.NewAuthService(db, cfg)
 	subscriptionService := services.NewSubscriptionService(db)
 	moderationService := services.NewModerationService(db)
-	auraService := services.NewAuraService(db)
+	auraService := services.NewAuraService(db, cfg)
 	auraMatchService := services.NewAuraMatchService(db)
 	streakService := services.NewStreakService(db)
 

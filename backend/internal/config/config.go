@@ -19,6 +19,9 @@ type Config struct {
 
 	RevenueCatWebhookAuth string
 
+	OpenAIAPIKey string
+	OpenAIModel  string
+
 	Port        string
 	CORSOrigins string
 }
@@ -37,6 +40,9 @@ func Load() *Config {
 		JWTRefreshExpiry: parseDuration(getEnv("JWT_REFRESH_EXPIRY", "168h")),
 
 		RevenueCatWebhookAuth: getEnv("REVENUECAT_WEBHOOK_AUTH", ""),
+
+		OpenAIAPIKey: getEnv("OPENAI_API_KEY", ""),
+		OpenAIModel:  getEnv("OPENAI_MODEL", "gpt-4o-mini"),
 
 		Port:        getEnv("PORT", "8080"),
 		CORSOrigins: getEnv("CORS_ORIGINS", "*"),

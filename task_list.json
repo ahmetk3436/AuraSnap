@@ -1,95 +1,185 @@
 {
   "tasks": [
     {
-      "id": "task_001",
-      "title": "Backend - AuraReading Model & CRUD",
-      "status": "completed",
+      "id": "enhance_001",
+      "title": "Backend: Add OpenAI Vision API integration for real aura analysis",
+      "description": "Replace the MOCK aura generation in backend/internal/services/aura_service.go (lines 92-126) which currently uses rand.Intn() to randomly pick colors and generate fake energy/mood scores. The Create() function must be completely rewritten to call the OpenAI Vision API with the user's selfie image.\n\nChanges required:\n\n1. backend/internal/config/config.go — Add new config fields: OpenAIAPIKey string, OpenAIModel string (default 'gpt-4o-mini'). Load from env vars OPENAI_API_KEY and OPENAI_MODEL. Add these to the Load() function alongside existing fields.\n\n2. backend/internal/services/aura_service.go — Complete rewrite of the Create() method:\n   - Add OpenAI API client using net/http (no external SDK needed). The service struct must accept config in NewAuraService(db *gorm.DB, cfg *config.Config).\n   - Build a JSON request body for POST https://api.openai.com/v1/chat/completions with model from config, messages array containing a system prompt and user message with image_url.\n   - System prompt must instruct GPT to analyze the person's photo and return a JSON object with fields: aura_color (one of: red, orange, yellow, green, blue, indigo, violet, white, gold, pink), secondary_color (nullable, one of: silver, gold, white, black, grey), energy_level (40-95 integer based on perceived vitality), mood_score (5-10 integer based on facial expression), personality (2-3 sentence description), strengths (array of 3 strings), challenges (array of 3 strings), daily_advice (1-2 sentence personalized advice).\n   - Parse the JSON response from GPT, validate all fields are within DB constraints (energy_level 1-100, mood_score 1-10), and fall back to the existing colorTraits map ONLY if the API call fails (network error, rate limit, etc.).\n   - Keep the existing colorTraits map as a fallback but clearly mark it as such with a comment.\n   - Add proper error handling: timeout (30s), retry once on 429, log errors.\n   - The image_url from the request body should be passed directly to GPT Vision API as the image URL in the content array.\n\n3. backend/cmd/server/main.go — Update NewAuraService call to pass cfg: auraService := services.NewAuraService(db, cfg).\n\n4. Keep ALL existing methods (GetByID, List, GetLatest, GetToday, Delete, GetStats) unchanged — they work correctly with real database data.\n\nThe response_format should use json_object mode. If OPENAI_API_KEY is empty, log a warning and use the existing mock random generation as fallback so the app still works in development without an API key.",
+      "status": "in_progress",
       "priority": 10,
       "depends_on": [],
-      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/backend && go build ./...",
-      "created_at": "2026-02-05T21:00:00Z",
-      "updated_at": "2026-02-05T21:30:00Z"
+      "test_command": "cd backend \u0026\u0026 go build ./...",
+      "auto_commit": true,
+      "created_at": "",
+      "updated_at": "2026-02-06T22:36:21Z"
     },
     {
-      "id": "task_002",
-      "title": "Backend - AuraMatch Compatibility Model",
-      "status": "completed",
-      "priority": 9,
-      "depends_on": ["task_001"],
-      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/backend && go build ./...",
-      "created_at": "2026-02-05T21:00:00Z",
-      "updated_at": "2026-02-05T21:30:00Z"
-    },
-    {
-      "id": "task_003",
-      "title": "Backend - Daily Streak & Gamification",
-      "status": "completed",
-      "priority": 8,
-      "depends_on": ["task_001"],
-      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/backend && go build ./...",
-      "created_at": "2026-02-05T21:00:00Z",
-      "updated_at": "2026-02-05T21:30:00Z"
-    },
-    {
-      "id": "task_004",
-      "title": "Mobile - Home Screen & Aura Scanner",
-      "status": "completed",
+      "id": "enhance_002",
+      "title": "Backend: Replace mock compatibility scoring with AI-powered match analysis",
+      "description": "Replace the MOCK compatibility algorithm in backend/internal/services/aura_match_service.go (lines 58-89) which uses rand.Intn() to generate random scores based on color pairs. The calculateCompatibility() function and Create() method must be rewritten to use the OpenAI API for intelligent compatibility analysis.\n\nChanges required:\n\n1. backend/internal/services/aura_match_service.go — Major refactoring:\n   - Update struct to accept config: type AuraMatchService struct { db *gorm.DB; cfg *config.Config }. Update NewAuraMatchService(db *gorm.DB, cfg *config.Config).\n   - Rewrite calculateCompatibility() to call OpenAI Chat API (text-only, no vision needed, use gpt-4o-mini).\n   - Build a prompt that provides both users' aura data (color, energy_level, mood_score, personality, strengths, challenges) and asks for: compatibility_score (0-100 integer), synergy (2-3 sentences about positive dynamics), tension (1-2 sentences about potential friction), advice (1-2 sentences of relationship guidance).\n   - The prompt should explain the aura color system and ask GPT to consider color theory, personality traits, and energy levels when computing compatibility.\n   - Parse the JSON response and validate compatibility_score is 0-100.\n   - Update Create() method to pass full AuraReading data to the new calculateCompatibility function instead of just colors.\n   - Keep the existing complementaryColors map and synergyMessages/tensionMessages as fallback if API fails.\n   - If OPENAI_API_KEY is empty, fall back to the existing random algorithm.\n\n2. backend/cmd/server/main.go — Update: auraMatchService := services.NewAuraMatchService(db, cfg).\n\n3. Keep ALL existing methods (List, GetByFriend) unchanged.\n\nThe existing hardcoded messages (synergyMessages, tensionMessages, adviceMessages, getSynergyDetail) should remain as fallback only. The real responses should come entirely from the AI, providing unique personalized insights for each match.",
+      "status": "pending",
       "priority": 10,
-      "depends_on": ["task_001"],
-      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/mobile && npx tsc --noEmit",
-      "created_at": "2026-02-05T21:00:00Z",
-      "updated_at": "2026-02-05T21:30:00Z"
+      "depends_on": [
+        "enhance_001"
+      ],
+      "test_command": "cd backend \u0026\u0026 go build ./...",
+      "auto_commit": true,
+      "created_at": "",
+      "updated_at": ""
     },
     {
-      "id": "task_005",
-      "title": "Mobile - Aura Results Screen",
-      "status": "completed",
+      "id": "enhance_003",
+      "title": "Backend: Add rate limiting and subscription-aware usage tracking",
+      "description": "Add per-user daily usage limits and subscription tier awareness to the aura scan endpoint. Free users get 3 scans/day, premium users get unlimited. This enforces the monetization strategy.\n\nChanges required:\n\n1. backend/internal/models/aura_reading.go — No model changes needed; we count readings by created_at date range using existing AuraReading model.\n\n2. backend/internal/services/aura_service.go — Add a new method CountToday(userID uuid.UUID) (int64, error) that queries: SELECT COUNT(*) FROM aura_readings WHERE user_id = ? AND created_at \u003e= startOfDay AND created_at \u003c endOfDay AND deleted_at IS NULL. Also add a method CheckUserSubscription(userID uuid.UUID) (bool, error) that queries the subscriptions table: SELECT COUNT(*) FROM subscriptions WHERE user_id = ? AND status = 'active'. Update the Create() method to check usage before proceeding: call CountToday(), if count \u003e= 3 then call CheckUserSubscription(), if not subscribed return a new custom error ErrDailyLimitReached = errors.New(\"daily scan limit reached, upgrade to premium for unlimited scans\").\n\n3. backend/internal/handlers/aura_handler.go — Update the Scan() handler to check for ErrDailyLimitReached and return HTTP 429 (Too Many Requests) with a JSON response: {\"error\": true, \"message\": \"Daily scan limit reached\", \"upgrade_required\": true, \"scans_today\": count, \"max_free_scans\": 3}. This allows the mobile app to show the paywall.\n\n4. backend/internal/dto/aura.go — Add a new DTO: type UsageLimitResponse struct { Error bool `json:\"error\"`; Message string `json:\"message\"`; UpgradeRequired bool `json:\"upgrade_required\"`; ScansToday int64 `json:\"scans_today\"`; MaxFreeScans int `json:\"max_free_scans\"` }.\n\n5. Add a new endpoint GET /api/aura/usage that returns the user's current daily usage count and limit. Add to routes.go under the aura protected group. Handler: GetUsage() returns {scans_today, max_scans, is_premium}.\n\nKeep existing error patterns consistent (fiber.Map with error/message fields).",
+      "status": "pending",
       "priority": 9,
-      "depends_on": ["task_004"],
-      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/mobile && npx tsc --noEmit",
-      "created_at": "2026-02-05T21:00:00Z",
-      "updated_at": "2026-02-05T21:30:00Z"
+      "depends_on": [
+        "enhance_001"
+      ],
+      "test_command": "cd backend \u0026\u0026 go build ./...",
+      "auto_commit": true,
+      "created_at": "",
+      "updated_at": ""
     },
     {
-      "id": "task_006",
-      "title": "Mobile - Aura History Tab",
-      "status": "completed",
+      "id": "enhance_004",
+      "title": "Mobile: Add 3-screen onboarding flow with guest mode",
+      "description": "Create a 3-screen onboarding flow that shows on first launch, plus guest mode allowing 3 free uses without login. This is required for Apple Guideline 5.1.1v (app must work without login).\n\nChanges required:\n\n1. mobile/app/onboarding.tsx — Create new screen with horizontal ScrollView (pagingEnabled, horizontal, showsHorizontalScrollIndicator={false}) containing 3 pages:\n   - Page 1: Welcome — Large Ionicons sparkles icon (size 80, color #8b5cf6) centered, title 'Discover Your Aura' (text-3xl font-bold text-white), subtitle 'AI-powered energy reading that reveals your true colors' (text-base text-gray-400 text-center mt-4), animated AuraOrb component at bottom.\n   - Page 2: Features — Title 'What You Get' (text-2xl font-bold text-white), 4 feature rows each with icon + text: 'AI Aura Analysis' (scan-outline, violet), 'Friend Compatibility' (people, pink), 'Daily Streaks' (flame, orange), 'Personality Insights' (bulb-outline, blue). Each row: flex-row items-center bg-gray-800/50 rounded-2xl p-4 mb-3.\n   - Page 3: CTA — Title 'Ready to Begin?' (text-2xl font-bold text-white). Two buttons: 'Try Free' (violet bg, rounded-2xl, h-14, calls handleGuestMode) and 'Sign In' (outline border-violet-500, rounded-2xl, h-14, navigates to /(auth)/login). Add 'Already have an account?' text link.\n   - Dot indicators at bottom: 3 dots (w-2 h-2 rounded-full), active dot is bg-violet-500 w-6, inactive is bg-gray-600.\n   - Track current page via onMomentumScrollEnd. Use AsyncStorage to set 'onboarding_completed' = 'true' when user taps either CTA.\n\n2. mobile/app/index.tsx — Rewrite the routing logic: First check AsyncStorage for 'onboarding_completed'. If not completed, redirect to /onboarding. If completed, check for guest mode (AsyncStorage 'guest_mode' = 'true'). If guest and guestUsageCount \u003c 3, redirect to /(protected)/home. If authenticated, redirect to /(protected)/home. Otherwise redirect to /(auth)/login. Add isCheckingOnboarding state to prevent flash.\n\n3. mobile/contexts/AuthContext.tsx — Add guest mode support: Add isGuest boolean state. Add continueAsGuest() method that sets AsyncStorage 'guest_mode' = 'true' and 'guest_usage_count' = '0', then sets a minimal guest user object {id: 'guest', email: 'guest@local'}. Add getGuestUsageCount() and incrementGuestUsage() methods using AsyncStorage. Export isGuest from context. The protected layout must allow guests in (check isAuthenticated || isGuest).\n\n4. mobile/app/(protected)/_layout.tsx — Update auth guard to also allow guests: if (!isAuthenticated \u0026\u0026 !isGuest) redirect to login.\n\n5. mobile/app/(auth)/login.tsx — Add 'Skip for now' link below Apple Sign In button that calls continueAsGuest() and navigates to /(protected)/home. Style: text-gray-400 text-center mt-6 underline.\n\nUse expo-secure-store is NOT needed for onboarding/guest — use @react-native-async-storage or just store in memory state. Since AsyncStorage is not in package.json, use expo-secure-store for the onboarding flag (it works for non-sensitive data too).",
+      "status": "pending",
       "priority": 8,
-      "depends_on": ["task_004", "task_005"],
-      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/mobile && npx tsc --noEmit",
-      "created_at": "2026-02-05T21:00:00Z",
-      "updated_at": "2026-02-05T21:30:00Z"
+      "depends_on": [],
+      "test_command": "cd mobile \u0026\u0026 npx tsc --noEmit",
+      "auto_commit": true,
+      "created_at": "",
+      "updated_at": ""
     },
     {
-      "id": "task_007",
-      "title": "Mobile - Friend Match Screen",
-      "status": "completed",
+      "id": "enhance_005",
+      "title": "Mobile: Handle scan limit with paywall trigger and usage display",
+      "description": "Integrate the backend daily scan limit (enhance_003) into the mobile app. When a free user hits the 3-scan limit, show a paywall prompt. Display remaining scans on the home screen.\n\nChanges required:\n\n1. mobile/app/(protected)/home.tsx — Add usage tracking:\n   - Add new state: scansToday (number), maxScans (number), isPremium (boolean).\n   - In the loadData useEffect, also call GET /aura/usage to fetch {scans_today, max_scans, is_premium}. Set states.\n   - Above the scan button, show a usage indicator: View with flex-row items-center justify-between bg-gray-800/50 rounded-xl p-3 mx-6. Left side: Text showing 'X of Y scans today' (text-sm text-gray-400). Right side: if isPremium show a Ionicons star icon with 'Premium' text (text-violet-400), else show remaining count.\n   - In handleScan(), after the camera capture but before the API call, check if scansToday \u003e= maxScans \u0026\u0026 !isPremium. If so, show an Alert with title 'Daily Limit Reached', message 'Upgrade to Premium for unlimited scans!', buttons: [{text: 'Maybe Later', style: 'cancel'}, {text: 'Go Premium', onPress: () =\u003e router.push('/paywall')}]. Return early without calling the API.\n   - If the API returns 429 status with upgrade_required: true, also redirect to the paywall screen.\n   - After a successful scan, increment scansToday locally: setScansToday(prev =\u003e prev + 1).\n   - For guest mode: Also check guest_usage_count from AuthContext. If guest and usage \u003e= 3, show 'Create an account to continue' alert with sign-up option.\n\n2. mobile/app/(protected)/home.tsx — Update the scan flow error handling: In the catch block, check if error.response?.status === 429 and error.response?.data?.upgrade_required === true. If so, show the paywall redirect alert instead of the generic error.\n\nKeep all existing home screen functionality (streak badge, today's aura, quick actions, aura tip) intact. The usage indicator should appear between the streak badge and the scan button/today's aura card.",
+      "status": "pending",
       "priority": 7,
-      "depends_on": ["task_002", "task_005"],
-      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/mobile && npx tsc --noEmit",
-      "created_at": "2026-02-05T21:00:00Z",
-      "updated_at": "2026-02-05T21:30:00Z"
+      "depends_on": [
+        "enhance_003",
+        "enhance_004"
+      ],
+      "test_command": "cd mobile \u0026\u0026 npx tsc --noEmit",
+      "auto_commit": true,
+      "created_at": "",
+      "updated_at": ""
     },
     {
-      "id": "task_008",
-      "title": "Mobile - Profile & Settings with Streak",
-      "status": "completed",
+      "id": "enhance_006",
+      "title": "Mobile: Upload selfie image to backend via multipart form data",
+      "description": "Currently home.tsx sends image_url as a local file URI (file:///...) to the backend, but the backend passes this directly to OpenAI Vision API which cannot access local device files. The image must be uploaded as base64 or via multipart form data.\n\nChanges required:\n\n1. mobile/app/(protected)/home.tsx — Update the handleScan() function:\n   - After capturing the image with ImagePicker, read the image file and convert to base64 using expo-file-system (NOT in package.json, so use fetch + blob approach instead).\n   - Replace the api.post('/aura/scan', { image_url: result.assets[0].uri }) call with:\n     ```\n     const response = await fetch(result.assets[0].uri);\n     const blob = await response.blob();\n     const reader = new FileReader();\n     // Convert to base64 data URI\n     ```\n   - OR simpler approach: Use FormData to upload as multipart:\n     ```\n     const formData = new FormData();\n     formData.append('image', { uri: result.assets[0].uri, name: 'selfie.jpg', type: 'image/jpeg' } as any);\n     const { data } = await api.post('/aura/scan', formData, { headers: { 'Content-Type': 'multipart/form-data' } });\n     ```\n   - The simplest and most reliable approach for React Native: send as base64 string in JSON body. Use the FileSystem approach or manual fetch-to-base64 conversion.\n\n2. backend/internal/handlers/aura_handler.go — Update the Scan() handler to accept either:\n   - JSON body with image_data (base64 string) field, OR\n   - JSON body with image_url field (for backward compatibility)\n   - Add image_data field to dto.CreateAuraRequest.\n\n3. backend/internal/dto/aura.go — Add ImageData field: ImageData string `json:\"image_data\"` to CreateAuraRequest. Make ImageURL optional (remove required validate tag).\n\n4. backend/internal/services/aura_service.go — In Create(), when calling OpenAI Vision API:\n   - If image_data is provided (base64), use it as: {type: 'image_url', image_url: {url: 'data:image/jpeg;base64,' + imageData}}\n   - If image_url is provided, use it directly (for URLs accessible to OpenAI)\n   - Validate that at least one of image_data or image_url is provided.\n\nThe base64 approach is most reliable for React Native → Go backend → OpenAI pipeline since it doesn't require file storage or presigned URLs.",
+      "status": "pending",
+      "priority": 8,
+      "depends_on": [
+        "enhance_001"
+      ],
+      "test_command": "cd backend \u0026\u0026 go build ./...",
+      "auto_commit": true,
+      "created_at": "",
+      "updated_at": ""
+    },
+    {
+      "id": "enhance_007",
+      "title": "Mobile: Add animated loading screen during aura analysis",
+      "description": "Replace the simple 2500ms setTimeout mock delay in home.tsx with a real animated loading experience that stays visible while the OpenAI API processes the image (which takes 3-8 seconds).\n\nChanges required:\n\n1. mobile/components/aura/ScanningOverlay.tsx — Create new full-screen overlay component:\n   - Props: visible (boolean), message (string, default 'Reading your energy...')\n   - Full-screen absolute overlay (position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50)\n   - Background: bg-gray-950/95 (dark semi-transparent)\n   - Center content: Large AuraOrb (size 160) with enhanced pulse animation (scale 1 → 1.15, duration 1200ms, loop)\n   - Below orb: Animated dots loading indicator — three small circles (w-3 h-3 rounded-full bg-violet-500) that pulse sequentially with 200ms delay between each. Use Animated.sequence with Animated.timing for each dot's opacity 0.3 → 1 → 0.3.\n   - Below dots: message text (text-lg text-white font-medium text-center mt-6)\n   - Below message: rotating array of fun tips that change every 2 seconds using setInterval: ['Analyzing your energy field...', 'Detecting aura frequencies...', 'Reading color vibrations...', 'Mapping your energy signature...', 'Connecting with your essence...']. Fade transition between tips using Animated.timing on opacity.\n   - Wrap in Modal or conditional render with fade-in animation.\n\n2. mobile/app/(protected)/home.tsx — Update handleScan():\n   - Remove the setTimeout mock delay line: await new Promise(resolve =\u003e setTimeout(resolve, 2500)).\n   - Set isScanning = true BEFORE the API call (already done).\n   - Show ScanningOverlay when isScanning is true. Add \u003cScanningOverlay visible={isScanning} /\u003e at the top of the JSX return, before the SafeAreaView or inside it.\n   - The overlay automatically dismisses when isScanning becomes false (after API response).\n   - If the API takes less than 2 seconds, add a minimum display time of 2 seconds for UX smoothness using: const startTime = Date.now(); ... const elapsed = Date.now() - startTime; if (elapsed \u003c 2000) await new Promise(r =\u003e setTimeout(r, 2000 - elapsed));\n\nThis creates a premium feel during the AI analysis wait time. All animations should use useNativeDriver: true for performance.",
+      "status": "pending",
       "priority": 7,
-      "depends_on": ["task_003", "task_004"],
-      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/mobile && npx tsc --noEmit",
-      "created_at": "2026-02-05T21:00:00Z",
-      "updated_at": "2026-02-05T21:30:00Z"
+      "depends_on": [],
+      "test_command": "cd mobile \u0026\u0026 npx tsc --noEmit",
+      "auto_commit": true,
+      "created_at": "",
+      "updated_at": ""
     },
     {
-      "id": "task_009",
-      "title": "Deploy - Git Push & Coolify",
-      "status": "completed",
-      "priority": 1,
-      "depends_on": ["task_001", "task_002", "task_003", "task_004", "task_005", "task_006", "task_007", "task_008"],
-      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap && git status",
-      "is_deployment": true,
-      "created_at": "2026-02-05T21:00:00Z",
-      "updated_at": "2026-02-05T21:35:00Z"
+      "id": "enhance_008",
+      "title": "Mobile: Add share card generation for aura results",
+      "description": "Enhance the sharing experience on the aura detail screen (aura/[id].tsx) and match screen (match.tsx). Currently sharing uses React Native Share with plain text. Add visually appealing share card generation.\n\nChanges required:\n\n1. mobile/app/(protected)/aura/[id].tsx — Enhance the existing share functionality:\n   - The current handleShare function uses Share.share with a plain message string. Keep this as the primary share method but improve the share message format.\n   - Update the share message to be more engaging: 'My aura is {COLOR} today! Energy: {ENERGY}% | Mood: {MOOD_EMOJI}\\n\\n{PERSONALITY}\\n\\nDiscover your aura at AuraSnap\\nhttps://apps.apple.com/app/aurasnap'\n   - Add a mood emoji mapping: score \u003e= 9 → '🌟', \u003e= 7 → '😊', \u003e= 5 → '😌', else → '🤔'\n   - Add a color emoji mapping: red → '🔴', orange → '🟠', yellow → '🟡', green → '🟢', blue → '🔵', indigo → '🟣', violet → '💜', white → '⚪', gold → '🥇', pink → '🩷'\n   - Call hapticSuccess() after successful share, hapticMedium() on button press.\n\n2. mobile/app/(protected)/match.tsx — Enhance match share functionality:\n   - Update the match share message: '{USER_COLOR_EMOJI} + {FRIEND_COLOR_EMOJI} = {SCORE}% compatibility!\\n\\n{SYNERGY_EXCERPT}\\n\\nCompare your aura with friends at AuraSnap\\nhttps://apps.apple.com/app/aurasnap'\n   - Add the same color emoji mapping.\n   - Add a share prompt that auto-appears 2 seconds after match results load: Show a subtle banner at the bottom (absolute bottom-20, bg-violet-600/90 rounded-2xl mx-6 p-4 flex-row items-center) with text 'Share your match!' and a share icon. Dismiss on tap or after 5 seconds. Use Animated.timing for slide-up and fade-out.\n\n3. Both screens should add haptic feedback on share button press (hapticMedium) and on successful share (hapticSuccess).\n\nKeep existing share button UI (violet gradient button with Ionicons share-outline icon). The share prompt banner should use Animated.spring for a bouncy slide-up entrance.",
+      "status": "pending",
+      "priority": 6,
+      "depends_on": [],
+      "test_command": "cd mobile \u0026\u0026 npx tsc --noEmit",
+      "auto_commit": true,
+      "created_at": "",
+      "updated_at": ""
+    },
+    {
+      "id": "enhance_009",
+      "title": "Mobile: Add privacy policy and terms links in settings",
+      "description": "Add required privacy policy and terms of service links in the settings screen. This is mandatory for Apple App Store submission (Guideline 5.1).\n\nChanges required:\n\n1. mobile/app/(protected)/settings.tsx — Add a new 'Legal' section between 'App' and 'Account' sections:\n   - Section header: 'Legal' (text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3)\n   - Two rows in a bg-gray-800/50 rounded-2xl overflow-hidden container:\n     - Row 1: 'Privacy Policy' with Ionicons shield-checkmark-outline icon (violet), onPress opens Linking.openURL('https://aurasnap.app/privacy'). flex-row items-center p-4, icon in h-10 w-10 items-center justify-center rounded-full bg-violet-500/20, text text-white font-medium ml-3 flex-1, chevron-forward icon on right.\n     - Row 2: 'Terms of Service' with Ionicons document-text-outline icon (blue), onPress opens Linking.openURL('https://aurasnap.app/terms'). Same row layout as above but with blue icon bg.\n     - Add a 1px separator line between rows: View className='h-px bg-gray-700/50 mx-4'\n   - Add hapticSelection() on each row press.\n   - Import Linking from 'react-native' (may already be imported) and add * as Linking from 'expo-linking' for openURL.\n\n2. Also add a small 'Privacy Policy' text link at the bottom of the paywall screen (mobile/app/(protected)/paywall.tsx) below the existing subscription terms text. Style: text-xs text-gray-500 underline text-center mt-2. This is required by Apple for any screen that initiates purchases.\n\nKeep all existing settings sections (Profile, Stats, Unlocked Colors, Security, App, Account, Version) intact. The Legal section goes between App and Account.",
+      "status": "pending",
+      "priority": 7,
+      "depends_on": [],
+      "test_command": "cd mobile \u0026\u0026 npx tsc --noEmit",
+      "auto_commit": true,
+      "created_at": "",
+      "updated_at": ""
+    },
+    {
+      "id": "enhance_010",
+      "title": "Mobile: Enhance index.tsx loading screen with branded splash",
+      "description": "Replace the plain white ActivityIndicator loading screen in index.tsx and the protected layout with a branded dark-themed loading screen matching the app's violet/dark aesthetic.\n\nChanges required:\n\n1. mobile/app/index.tsx — Replace the loading view:\n   - Change bg-white to bg-gray-950 (dark theme matching the rest of the app)\n   - Change ActivityIndicator color from #2563eb (blue) to #8b5cf6 (violet, the app's primary color)\n   - Add the AuraSnap branding: Ionicons sparkles icon (size 48, color #8b5cf6) above the spinner\n   - Add 'AuraSnap' text below the icon (text-2xl font-bold text-white)\n   - Add subtle tagline 'Discover your energy' (text-sm text-gray-500 mt-1)\n\n2. mobile/app/(protected)/_layout.tsx — Same treatment for the loading view:\n   - Change bg-white to bg-gray-950\n   - Change ActivityIndicator color to #8b5cf6\n   - Add the same sparkles icon and AuraSnap text above the spinner\n\n3. mobile/app/(auth)/_layout.tsx — If it has a loading or wrapper view, ensure it matches the dark theme. Currently it's a Stack layout with white bg — change the background to bg-gray-950 for consistency, and update headerStyle if visible.\n\nThis ensures no jarring white flashes during app load transitions. All loading screens should feel cohesive with the dark violet theme used throughout the app.",
+      "status": "pending",
+      "priority": 6,
+      "depends_on": [],
+      "test_command": "cd mobile \u0026\u0026 npx tsc --noEmit",
+      "auto_commit": true,
+      "created_at": "",
+      "updated_at": ""
+    },
+    {
+      "id": "enhance_011",
+      "title": "Mobile: Add pull-to-refresh on home screen and improve error states",
+      "description": "Add pull-to-refresh to the home screen and improve error/empty states across the app for a polished user experience.\n\nChanges required:\n\n1. mobile/app/(protected)/home.tsx — Add RefreshControl to ScrollView:\n   - Add refreshing state: const [refreshing, setRefreshing] = useState(false);\n   - Add onRefresh callback: sets refreshing true, calls fetchTodayAura() and fetchStreak() in parallel, then sets refreshing false.\n   - Add RefreshControl to ScrollView: refreshControl={\u003cRefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor='#8b5cf6' colors={['#8b5cf6']} /\u003e}\n   - Import RefreshControl from 'react-native'.\n\n2. mobile/app/(protected)/home.tsx — Add proper loading skeleton:\n   - When isLoading is true (initial load), show a skeleton layout instead of nothing:\n   - Skeleton header: View with bg-gray-800 rounded-lg h-8 w-40 (for title placeholder)\n   - Skeleton streak: View with bg-gray-800 rounded-2xl h-16 mx-6 mt-4\n   - Skeleton scan button: View with bg-gray-800 rounded-full h-40 w-40 self-center mt-12\n   - Add subtle pulse animation on skeleton views using Animated.loop with opacity 0.3 → 0.7 → 0.3, duration 1500ms.\n\n3. mobile/app/(protected)/home.tsx — Improve empty state when no streak data:\n   - If streak is null after loading, show a welcome message: 'Start your first scan to begin tracking your energy!' with Ionicons sparkles icon.\n\n4. mobile/app/(protected)/match.tsx — Add error state:\n   - If the match API returns an error (friend not found, no aura reading), show a user-friendly error card instead of just an Alert: View with bg-red-500/10 border border-red-500/20 rounded-2xl p-6 mx-6. Ionicons alert-circle icon (size 48, color red-400), error message text, and 'Try Again' button.\n\nKeep all existing functionality intact. These are additive improvements only.",
+      "status": "pending",
+      "priority": 6,
+      "depends_on": [],
+      "test_command": "cd mobile \u0026\u0026 npx tsc --noEmit",
+      "auto_commit": true,
+      "created_at": "",
+      "updated_at": ""
+    },
+    {
+      "id": "enhance_012",
+      "title": "Backend: Add image data handling for base64 selfie uploads",
+      "description": "Update the backend scan endpoint to properly handle base64 image data from the mobile app and pass it to the OpenAI Vision API.\n\nChanges required:\n\n1. backend/internal/dto/aura.go — Update CreateAuraRequest:\n   - Add ImageData field: ImageData string `json:\"image_data\"` (base64 encoded image)\n   - Make ImageURL optional by removing the validate:\"required,url\" tag. Change to: ImageURL string `json:\"image_url\"`\n   - Add validation comment: at least one of image_url or image_data must be provided.\n\n2. backend/internal/handlers/aura_handler.go — Update the Scan() handler:\n   - After parsing the request body, validate that at least one of req.ImageURL or req.ImageData is non-empty.\n   - If both are empty, return 400: {\"error\": true, \"message\": \"Either image_url or image_data is required\"}\n   - If image_data is provided and exceeds 4MB (after base64 decode estimation: len(imageData) * 3/4 \u003e 4*1024*1024), return 400: {\"error\": true, \"message\": \"Image too large, maximum 4MB\"}\n   - Pass the request through to the service as-is.\n\n3. backend/internal/services/aura_service.go — Update the Create() method's OpenAI API call:\n   - When building the OpenAI request content array:\n     - If req.ImageData is non-empty, construct the image_url as: 'data:image/jpeg;base64,' + req.ImageData\n     - If req.ImageURL is non-empty and starts with 'http', use it directly\n     - If req.ImageURL is a local file path (starts with 'file://'), return an error: 'local file URLs not supported, use image_data'\n   - The OpenAI Vision API content format: {\"type\": \"image_url\", \"image_url\": {\"url\": imageURL, \"detail\": \"low\"}} — use 'low' detail to reduce cost ($0.003 vs $0.008)\n\n4. Increase the Fiber body limit in main.go from 4MB to 8MB to accommodate base64 overhead: BodyLimit: 8 * 1024 * 1024\n\nThis completes the image upload pipeline: Mobile (camera) → base64 → JSON → Backend → OpenAI Vision API.",
+      "status": "pending",
+      "priority": 9,
+      "depends_on": [
+        "enhance_001"
+      ],
+      "test_command": "cd backend \u0026\u0026 go build ./...",
+      "auto_commit": true,
+      "created_at": "",
+      "updated_at": ""
+    },
+    {
+      "id": "enhance_013",
+      "title": "Mobile: Convert protected layout from Tabs to custom Slot-based tab bar",
+      "description": "Replace the expo-router Tabs component in the protected layout with a custom Slot-based tab bar for full NativeWind v4 styling control. The current Tabs component uses inline styles which limits visual customization.\n\nChanges required:\n\n1. mobile/app/(protected)/_layout.tsx — Complete rewrite:\n   - Remove the Tabs import. Import { Slot, usePathname, useRouter } from 'expo-router'.\n   - Remove the Redirect import for auth guard (keep the auth check logic).\n   - Build a custom layout:\n     ```\n     \u003cView className='flex-1 bg-gray-950'\u003e\n       \u003cSlot /\u003e\n       \u003cCustomTabBar /\u003e\n     \u003c/View\u003e\n     ```\n   - Create CustomTabBar as an inline component or separate file:\n     - Position: absolute bottom-0, full width, bg-gray-950 border-t border-gray-800\n     - SafeAreaView wrapper for bottom inset\n     - Three tab items in a flex-row justify-around px-6 py-2:\n       - Home: Ionicons sparkles, label 'Home', route '/home'\n       - History: Ionicons time-outline, label 'History', route '/history'\n       - Settings: Ionicons person-outline, label 'Settings', route '/settings'\n     - Active state: text-violet-500, icon color #8b5cf6, with a subtle animated dot indicator (w-1 h-1 rounded-full bg-violet-500 mt-1) below the active icon\n     - Inactive state: text-gray-500, icon color #6b7280\n     - Each tab is a Pressable that calls router.push(route) and hapticSelection()\n     - Use usePathname() to determine active tab: pathname.includes('/home'), etc.\n   - Keep the auth guard at the top: if (!isAuthenticated \u0026\u0026 !isGuest) return \u003cRedirect /\u003e\n   - Keep the loading state with branded spinner.\n\n2. All protected screens (home.tsx, history.tsx, settings.tsx) — Add paddingBottom: 90 to their ScrollView contentContainerStyle to account for the custom tab bar height. Most already have paddingBottom: 100 which is sufficient.\n\nThe custom tab bar gives full NativeWind control and avoids the expo-router Tabs limitation where inline styles are required for tab bar appearance. The dot indicator animation uses Animated.spring for a subtle bounce when switching tabs.",
+      "status": "pending",
+      "priority": 7,
+      "depends_on": [
+        "enhance_004"
+      ],
+      "test_command": "cd mobile \u0026\u0026 npx tsc --noEmit",
+      "auto_commit": true,
+      "created_at": "",
+      "updated_at": ""
+    },
+    {
+      "id": "enhance_014",
+      "title": "Mobile: Add gradient accents and visual polish to all screens",
+      "description": "Add gradient accents, improved shadows, and visual polish across the app for App Store quality. NativeWind v4 doesn't support gradient classes natively in React Native, so use LinearGradient-style workarounds.\n\nChanges required:\n\n1. mobile/components/aura/AuraCard.tsx — Enhance the aura card:\n   - Add a subtle top border accent: View with h-1 rounded-t-3xl with backgroundColor matching the aura color at 60% opacity, positioned at the top of the card.\n   - Add elevation shadow: style={{ shadowColor: colorValue, shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8 }}.\n   - Make the energy bar rounded: rounded-full on both the track (bg-gray-700 h-2 rounded-full) and the fill.\n\n2. mobile/components/aura/ScanButton.tsx — Add outer ring glow:\n   - Add a third animated ring (w-56 h-56) with very low opacity (0.1 → 0.3) that creates a wider ambient glow effect.\n   - Increase the main button shadow: shadowOpacity: 0.5, shadowRadius: 20.\n\n3. mobile/app/(protected)/home.tsx — Polish the quick actions card:\n   - Add a subtle left border accent on the 'Compare with Friend' card: borderLeftWidth: 3, borderLeftColor: '#ec4899' (pink).\n   - Improve the Aura Tip box: Since bg-gradient-to-r doesn't work in RN, replace with a solid bg-violet-900/30 with borderLeftWidth: 3, borderLeftColor: '#8b5cf6'.\n\n4. mobile/app/(protected)/aura/[id].tsx — Enhance the detail screen:\n   - Add color-matched shadow to the AuraOrb: style={{ shadowColor: colorValue, shadowOpacity: 0.4, shadowRadius: 30 }}.\n   - Improve section headers: Add small colored dot (w-2 h-2 rounded-full) before each section title matching the section's accent color.\n\n5. mobile/app/(protected)/settings.tsx — Polish the profile card:\n   - Add a violet top accent bar: View with h-1 bg-violet-500 rounded-t-2xl at the top of the profile card.\n   - Improve the avatar circle: Add a border-2 border-violet-500/50.\n\n6. Global: Ensure all card components use rounded-2xl (minimum), proper spacing (p-4 or p-5), and subtle borders (border border-gray-800/50) for depth on the dark background.\n\nAll changes are purely visual and don't affect functionality. Focus on shadows, borders, and accent colors that match the violet/dark theme.",
+      "status": "pending",
+      "priority": 6,
+      "depends_on": [],
+      "test_command": "cd mobile \u0026\u0026 npx tsc --noEmit",
+      "auto_commit": true,
+      "created_at": "",
+      "updated_at": ""
     }
   ]
 }

@@ -83,7 +83,7 @@
     {
       "id": "task_009",
       "title": "Deploy - Git Push & Coolify",
-      "status": "in_progress",
+      "status": "completed",
       "priority": 1,
       "depends_on": ["task_001", "task_002", "task_003", "task_004", "task_005", "task_006", "task_007", "task_008"],
       "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap && git status",

@@ -75,6 +75,12 @@ export default function ProtectedLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name="paywall"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

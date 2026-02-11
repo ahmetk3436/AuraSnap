@@ -78,7 +78,7 @@ func (h *AuraHandler) Scan(c *fiber.Ctx) error {
 	}
 
 	// Create aura reading
-	reading, err := h.auraService.Create(userID, &req)
+	reading, err := h.auraService.Create(userID, req)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -136,7 +136,7 @@ func (h *AuraHandler) ScanWithUpload(c *fiber.Ctx) error {
 	// Encode to base64
 	b64Data := base64.StdEncoding.EncodeToString(fileBytes)
 
-	req := &dto.CreateAuraRequest{
+	req := dto.CreateAuraRequest{
 		ImageData: b64Data,
 	}
 
@@ -161,7 +161,7 @@ func (h *AuraHandler) GetByID(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid reading ID"})
 	}
 
-	reading, err := h.auraService.GetByID(readingID, userID)
+	reading, err := h.auraService.GetByID(userID, readingID)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Reading not found"})
 	}
@@ -180,12 +180,36 @@ func (h *AuraHandler) List(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	pageSize, _ := strconv.Atoi(c.Query("page_size", "20"))
 
-	result, err := h.auraService.List(userID, page, pageSize)
+	readings, total, err := h.auraService.List(userID, page, pageSize)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch readings"})
 	}
 
-	return c.JSON(result)
+	items := make([]dto.AuraReadingResponse, 0, len(readings))
+	for _, r := range readings {
+		items = append(items, dto.AuraReadingResponse{
+			ID:             r.ID,
+			UserID:         r.UserID,
+			AuraColor:      r.AuraColor,
+			SecondaryColor: r.SecondaryColor,
+			EnergyLevel:    r.EnergyLevel,
+			MoodScore:      r.MoodScore,
+			Personality:    r.Personality,
+			Strengths:      r.Strengths,
+			Challenges:     r.Challenges,
+			DailyAdvice:    r.DailyAdvice,
+			ImageURL:       r.ImageURL,
+			AnalyzedAt:     r.AnalyzedAt,
+			CreatedAt:      r.CreatedAt,
+		})
+	}
+
+	return c.JSON(dto.AuraListResponse{
+		Data:       items,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalCount: total,
+	})
 }
 
 // Stats returns aggregated stats for the user's aura readings

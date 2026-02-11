@@ -1,7 +1,9 @@
 package services
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ahmetcoskunkizilkaya/aurasnap/backend/internal/dto"
@@ -19,63 +21,102 @@ func NewSubscriptionService(db *gorm.DB) *SubscriptionService {
 }
 
 func (s *SubscriptionService) HandleWebhookEvent(event *dto.RevenueCatEvent) error {
+	status := ""
 	switch event.Type {
-	case "INITIAL_PURCHASE":
-		return s.handleInitialPurchase(event)
-	case "RENEWAL":
-		return s.handleRenewal(event)
+	case "INITIAL_PURCHASE", "RENEWAL":
+		status = "active"
 	case "CANCELLATION":
-		return s.handleCancellation(event)
+		status = "cancelled"
 	case "EXPIRATION":
-		return s.handleExpiration(event)
+		status = "expired"
 	default:
-		// Log unknown event type but don't fail
+		// Ignore unknown event types (RevenueCat adds new ones over time).
 		return nil
 	}
+	return s.upsertSubscription(event, status)
 }
 
-func (s *SubscriptionService) handleInitialPurchase(event *dto.RevenueCatEvent) error {
-	sub := models.Subscription{
-		ID:                 uuid.New(),
-		RevenueCatID:       event.AppUserID,
-		ProductID:          event.ProductID,
-		Status:             "active",
-		CurrentPeriodStart: msToTime(event.PurchasedAtMs),
-		CurrentPeriodEnd:   msToTime(event.ExpirationAtMs),
-	}
-
-	// Try to link to existing user by RevenueCat app_user_id
-	var user models.User
-	if err := s.db.Where("id = ?", event.AppUserID).First(&user).Error; err == nil {
-		sub.UserID = user.ID
-	}
-
-	return s.db.Create(&sub).Error
-}
-
-func (s *SubscriptionService) handleRenewal(event *dto.RevenueCatEvent) error {
+func (s *SubscriptionService) upsertSubscription(event *dto.RevenueCatEvent, status string) error {
 	var sub models.Subscription
-	if err := s.db.Where("revenuecat_id = ?", event.AppUserID).First(&sub).Error; err != nil {
-		return fmt.Errorf("subscription not found for renewal: %w", err)
+	var err error
+
+	originalTx := strings.TrimSpace(event.OriginalTransactionID)
+	if originalTx != "" {
+		err = s.db.Where("original_transaction_id = ?", originalTx).First(&sub).Error
+	} else {
+		err = s.db.Where("revenuecat_id = ?", event.AppUserID).First(&sub).Error
 	}
 
-	return s.db.Model(&sub).Updates(map[string]interface{}{
-		"status":               "active",
-		"current_period_end":   msToTime(event.ExpirationAtMs),
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		sub = models.Subscription{ID: uuid.New()}
+		sub.RevenueCatID = event.AppUserID
+		sub.ProductID = event.ProductID
+		sub.Status = status
+		sub.CurrentPeriodStart = msToTime(event.PurchasedAtMs)
+		sub.CurrentPeriodEnd = msToTime(event.ExpirationAtMs)
+
+		if v := strings.TrimSpace(event.OriginalAppUserID); v != "" {
+			sub.OriginalAppUserID = &v
+		}
+		if v := strings.TrimSpace(event.TransactionID); v != "" {
+			sub.TransactionID = &v
+		}
+		if originalTx != "" {
+			sub.OriginalTransactionID = &originalTx
+		}
+		if userID := s.lookupUserID(event.AppUserID, event.OriginalAppUserID); userID != nil {
+			sub.UserID = userID
+		}
+
+		return s.db.Create(&sub).Error
+	}
+	if err != nil {
+		return fmt.Errorf("failed to lookup subscription: %w", err)
+	}
+
+	updates := map[string]interface{}{
+		"revenuecat_id":        event.AppUserID,
+		"product_id":           event.ProductID,
+		"status":               status,
 		"current_period_start": msToTime(event.PurchasedAtMs),
-	}).Error
+		"current_period_end":   msToTime(event.ExpirationAtMs),
+	}
+	if v := strings.TrimSpace(event.OriginalAppUserID); v != "" {
+		updates["original_app_user_id"] = v
+	}
+	if v := strings.TrimSpace(event.TransactionID); v != "" {
+		updates["transaction_id"] = v
+	}
+	if originalTx != "" {
+		updates["original_transaction_id"] = originalTx
+	}
+	if userID := s.lookupUserID(event.AppUserID, event.OriginalAppUserID); userID != nil {
+		updates["user_id"] = *userID
+	}
+
+	return s.db.Model(&sub).Updates(updates).Error
 }
 
-func (s *SubscriptionService) handleCancellation(event *dto.RevenueCatEvent) error {
-	return s.db.Model(&models.Subscription{}).
-		Where("revenuecat_id = ?", event.AppUserID).
-		Update("status", "cancelled").Error
-}
+func (s *SubscriptionService) lookupUserID(appUserID, originalAppUserID string) *uuid.UUID {
+	candidates := []string{appUserID, originalAppUserID}
+	for _, c := range candidates {
+		c = strings.TrimSpace(c)
+		if c == "" {
+			continue
+		}
 
-func (s *SubscriptionService) handleExpiration(event *dto.RevenueCatEvent) error {
-	return s.db.Model(&models.Subscription{}).
-		Where("revenuecat_id = ?", event.AppUserID).
-		Update("status", "expired").Error
+		id, err := uuid.Parse(c)
+		if err != nil {
+			continue
+		}
+
+		var user models.User
+		if err := s.db.Select("id").First(&user, "id = ?", id).Error; err == nil {
+			return &user.ID
+		}
+	}
+
+	return nil
 }
 
 func msToTime(ms int64) time.Time {

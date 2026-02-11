@@ -62,7 +62,7 @@ func Setup(app *fiber.App, cfg *config.Config, authHandler *handlers.AuthHandler
 	protected.Delete("/blocks/:id", moderationHandler.UnblockUser)
 
 	// Admin routes
-	admin := protected.Group("/admin")
+	admin := protected.Group("/admin", middleware.AdminOnly(cfg))
 	admin.Get("/moderation/reports", moderationHandler.ListReports)
 	admin.Put("/moderation/reports/:id", moderationHandler.ActionReport)
 }

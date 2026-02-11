@@ -1,10 +1,10 @@
 package services
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -116,7 +116,10 @@ func (s *AuthService) DeleteAccount(userID uuid.UUID, password string) error {
 	}
 
 	// Verify password (skip for Apple Sign-In users who have no password)
-	if user.Password != "" && password != "" {
+	if user.Password != "" {
+		if strings.TrimSpace(password) == "" {
+			return ErrInvalidCredentials
+		}
 		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
 			return ErrInvalidCredentials
 		}
@@ -144,60 +147,69 @@ func (s *AuthService) DeleteAccount(userID uuid.UUID, password string) error {
 // AppleSignIn handles Sign in with Apple (Guideline 4.8).
 // Verifies Apple identity token and creates/finds a user.
 func (s *AuthService) AppleSignIn(req *dto.AppleSignInRequest) (*dto.AuthResponse, error) {
-	// Decode the Apple identity token to extract the subject (Apple user ID)
-	// In production, verify the token signature against Apple's public keys at:
-	// https://appleid.apple.com/auth/keys
-	parts := strings.Split(req.IdentityToken, ".")
-	if len(parts) != 3 {
-		return nil, errors.New("invalid Apple identity token format")
-	}
-
-	// Decode the payload (base64url)
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	allowedAudiences := splitCSV(s.cfg.AppleClientIDs)
+	claims, err := verifyAppleIdentityToken(context.Background(), req.IdentityToken, allowedAudiences)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode Apple token payload: %w", err)
+		return nil, err
 	}
 
-	var claims struct {
-		Sub   string `json:"sub"`
-		Email string `json:"email"`
-	}
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return nil, fmt.Errorf("failed to parse Apple token claims: %w", err)
-	}
-
-	if claims.Sub == "" {
+	sub, _ := claims["sub"].(string)
+	if sub == "" {
 		return nil, errors.New("Apple token missing subject")
 	}
 
 	// Use email from token, or from the request (first sign-in only)
-	email := claims.Email
+	email, _ := claims["email"].(string)
 	if email == "" {
 		email = req.Email
 	}
 	if email == "" {
-		email = claims.Sub + "@privaterelay.appleid.com"
+		email = sub + "@privaterelay.appleid.com"
 	}
 
-	// Find existing user by Apple ID (stored in email field with apple: prefix)
-	// or by email match
 	var user models.User
-	appleEmail := "apple:" + claims.Sub
-	err = s.db.Where("email = ? OR email = ?", appleEmail, email).First(&user).Error
-
-	if err != nil {
-		// Create new user for first-time Apple sign-in
-		user = models.User{
-			ID:       uuid.New(),
-			Email:    email,
-			Password: "", // Apple users have no password
+	err = s.db.Where("apple_sub = ?", sub).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// If the user previously registered with email+password, link their AppleSub on first Apple login.
+		if err := s.db.Where("email = ?", email).First(&user).Error; err == nil {
+			if user.AppleSub == nil || strings.TrimSpace(*user.AppleSub) == "" {
+				subCopy := sub
+				user.AppleSub = &subCopy
+				if err := s.db.Save(&user).Error; err != nil {
+					return nil, fmt.Errorf("failed to link Apple user: %w", err)
+				}
+			}
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			subCopy := sub
+			user = models.User{
+				ID:       uuid.New(),
+				Email:    email,
+				AppleSub: &subCopy,
+				Password: "", // Apple users have no password
+			}
+			if err := s.db.Create(&user).Error; err != nil {
+				return nil, fmt.Errorf("failed to create Apple user: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("failed to lookup user by email: %w", err)
 		}
-		if err := s.db.Create(&user).Error; err != nil {
-			return nil, fmt.Errorf("failed to create Apple user: %w", err)
-		}
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to lookup user by apple_sub: %w", err)
 	}
 
 	return s.generateTokenPair(&user)
+}
+
+func splitCSV(csv string) []string {
+	parts := strings.Split(csv, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func (s *AuthService) generateTokenPair(user *models.User) (*dto.AuthResponse, error) {

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"crypto/subtle"
+	"strings"
 
 	"github.com/ahmetcoskunkizilkaya/aurasnap/backend/internal/config"
 	"github.com/ahmetcoskunkizilkaya/aurasnap/backend/internal/dto"
@@ -23,8 +24,16 @@ func NewWebhookHandler(subscriptionService *services.SubscriptionService, cfg *c
 
 func (h *WebhookHandler) HandleRevenueCat(c *fiber.Ctx) error {
 	// Verify authorization header using constant-time comparison
+	expected := strings.TrimSpace(h.cfg.RevenueCatWebhookAuth)
+	if expected == "" {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(dto.ErrorResponse{
+			Error:   true,
+			Message: "Webhook auth not configured",
+		})
+	}
+
 	authHeader := c.Get("Authorization")
-	if subtle.ConstantTimeCompare([]byte(authHeader), []byte(h.cfg.RevenueCatWebhookAuth)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(authHeader), []byte(expected)) != 1 {
 		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
 			Error:   true,
 			Message: "Unauthorized",

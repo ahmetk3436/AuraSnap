@@ -24,6 +24,7 @@ var (
 	ErrInvalidCredentials = errors.New("invalid email or password")
 	ErrInvalidToken       = errors.New("invalid or expired refresh token")
 	ErrUserNotFound       = errors.New("user not found")
+	ErrGuestOnlyAction    = errors.New("guest account required")
 )
 
 type AuthService struct {
@@ -73,6 +74,51 @@ func (s *AuthService) Login(req *dto.LoginRequest) (*dto.AuthResponse, error) {
 		return nil, ErrInvalidCredentials
 	}
 
+	return s.generateTokenPair(&user)
+}
+
+func (s *AuthService) ClaimGuest(userID uuid.UUID, req *dto.ClaimGuestRequest) (*dto.AuthResponse, error) {
+	email := strings.TrimSpace(strings.ToLower(req.Email))
+	if email == "" || len(req.Password) < 8 {
+		return nil, errors.New("email required and password must be at least 8 characters")
+	}
+
+	var existing models.User
+	if err := s.db.Where("email = ?", email).First(&existing).Error; err == nil && existing.ID != userID {
+		return nil, ErrEmailTaken
+	}
+
+	var user models.User
+	if err := s.db.First(&user, "id = ?", userID).Error; err != nil {
+		return nil, ErrUserNotFound
+	}
+	if !isGuestEmail(user.Email) {
+		return nil, ErrGuestOnlyAction
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.User{}).
+			Where("id = ?", userID).
+			Updates(map[string]interface{}{
+				"email":    email,
+				"password": string(hash),
+			}).Error; err != nil {
+			return err
+		}
+
+		// Revoke all previous refresh tokens to avoid mixed sessions after claim.
+		return tx.Where("user_id = ?", userID).Delete(&models.RefreshToken{}).Error
+	}); err != nil {
+		return nil, fmt.Errorf("failed to claim guest account: %w", err)
+	}
+
+	user.Email = email
+	user.Password = string(hash)
 	return s.generateTokenPair(&user)
 }
 
@@ -298,4 +344,9 @@ func (s *AuthService) GetProfile(userID uuid.UUID) (map[string]interface{}, erro
 func hashToken(token string) string {
 	h := sha256.Sum256([]byte(token))
 	return fmt.Sprintf("%x", h)
+}
+
+func isGuestEmail(email string) bool {
+	normalized := strings.TrimSpace(strings.ToLower(email))
+	return strings.HasPrefix(normalized, "guest_") && strings.HasSuffix(normalized, "@guest.local")
 }

@@ -12,6 +12,11 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type ClaimGuestRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
 type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
@@ -21,8 +26,8 @@ type LogoutRequest struct {
 }
 
 type AuthResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken  string       `json:"access_token"`
+	RefreshToken string       `json:"refresh_token"`
 	User         UserResponse `json:"user"`
 }
 

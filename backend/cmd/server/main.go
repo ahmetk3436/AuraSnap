@@ -38,7 +38,7 @@ func main() {
 	subscriptionService := services.NewSubscriptionService(db)
 	moderationService := services.NewModerationService(db)
 	auraService := services.NewAuraService(db, cfg)
-	auraMatchService := services.NewAuraMatchService(db, cfg)
+	auraMatchService := services.NewAuraMatchService(db)
 	streakService := services.NewStreakService(db)
 
 	// Handlers
@@ -49,7 +49,6 @@ func main() {
 	auraHandler := handlers.NewAuraHandler(auraService)
 	auraMatchHandler := handlers.NewAuraMatchHandler(auraMatchService)
 	streakHandler := handlers.NewStreakHandler(streakService)
-	legalHandler := handlers.NewLegalHandler()
 
 	// Fiber app
 	app := fiber.New(fiber.Config{
@@ -74,7 +73,7 @@ func main() {
 	app.Use("/api/auth", authLimiter)
 
 	// Routes
-	routes.Setup(app, cfg, authHandler, healthHandler, webhookHandler, moderationHandler, auraHandler, auraMatchHandler, streakHandler, legalHandler)
+	routes.Setup(app, cfg, authHandler, healthHandler, webhookHandler, moderationHandler, auraHandler, auraMatchHandler, streakHandler)
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)

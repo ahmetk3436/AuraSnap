@@ -54,6 +54,35 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	return c.JSON(resp)
 }
 
+// ClaimGuest upgrades an authenticated anonymous guest account into a real account.
+func (h *AuthHandler) ClaimGuest(c *fiber.Ctx) error {
+	userID, err := extractUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{Error: true, Message: "Unauthorized"})
+	}
+
+	var req dto.ClaimGuestRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Error: true, Message: "Invalid request body"})
+	}
+
+	resp, err := h.authService.ClaimGuest(userID, &req)
+	if err != nil {
+		if errors.Is(err, services.ErrEmailTaken) {
+			return c.Status(fiber.StatusConflict).JSON(dto.ErrorResponse{Error: true, Message: err.Error()})
+		}
+		if errors.Is(err, services.ErrGuestOnlyAction) {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Error: true, Message: err.Error()})
+		}
+		if errors.Is(err, services.ErrUserNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(dto.ErrorResponse{Error: true, Message: "User not found"})
+		}
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Error: true, Message: err.Error()})
+	}
+
+	return c.JSON(resp)
+}
+
 // RefreshToken handles JWT refresh
 func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 	var req dto.RefreshRequest

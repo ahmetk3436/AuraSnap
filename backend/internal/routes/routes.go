@@ -33,6 +33,7 @@ func Setup(app *fiber.App, cfg *config.Config, authHandler *handlers.AuthHandler
 
 	// Auth (protected)
 	protected.Post("/auth/logout", authHandler.Logout)
+	protected.Post("/auth/claim", authHandler.ClaimGuest)
 	protected.Delete("/auth/account", authHandler.DeleteAccount)
 	protected.Get("/auth/profile", authHandler.GetProfile)
 

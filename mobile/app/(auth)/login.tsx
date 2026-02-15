@@ -1,13 +1,24 @@
-import React, { useState } from 'react';
-import { View, Text, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Pressable } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
 import { hapticError, hapticSuccess, hapticSelection } from '../../lib/haptics';
+
+const PENDING_DEEP_LINK_KEY = 'pending_deep_link';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -17,12 +28,34 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGuestLoading, setIsGuestLoading] = useState(false);
+  const [pendingRoute, setPendingRoute] = useState<string | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(PENDING_DEEP_LINK_KEY)
+      .then((value) => {
+        if (value && value.startsWith('/(protected)/')) {
+          setPendingRoute(value);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const resolvePostAuthRoute = async () => {
+    const stored = pendingRoute || (await AsyncStorage.getItem(PENDING_DEEP_LINK_KEY));
+    if (stored && stored.startsWith('/(protected)/')) {
+      await AsyncStorage.removeItem(PENDING_DEEP_LINK_KEY);
+      return stored;
+    }
+    return '/(protected)/home';
+  };
 
   const handleLogin = async () => {
     setIsLoading(true);
     setError('');
+    const normalizedEmail = email.trim().toLowerCase();
 
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       setError('Please fill in all fields.');
       setIsLoading(false);
       hapticError();
@@ -30,9 +63,10 @@ export default function LoginScreen() {
     }
 
     try {
-      await login(email, password);
+      await login(normalizedEmail, password);
       hapticSuccess();
-      router.replace('/(protected)/home');
+      const nextRoute = await resolvePostAuthRoute();
+      router.replace(nextRoute as any);
     } catch (err: any) {
       hapticError();
       setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
@@ -42,86 +76,107 @@ export default function LoginScreen() {
 
   const handleGuestMode = async () => {
     hapticSelection();
-    await continueAsGuest();
-    router.replace('/(protected)/home');
+    setError('');
+    setIsGuestLoading(true);
+
+    try {
+      await continueAsGuest();
+      const nextRoute = await resolvePostAuthRoute();
+      router.replace(nextRoute as any);
+    } catch {
+      hapticError();
+      setError('Guest mode is currently unavailable. Please try again.');
+    } finally {
+      setIsGuestLoading(false);
+    }
   };
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-gray-950"
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <SafeAreaView className="flex-1">
-        <ScrollView
-          className="flex-1 px-6"
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+    <SafeAreaView className="flex-1 bg-[#050816]">
+      <LinearGradient colors={['#050816', '#0b1130', '#11183e']} style={{ flex: 1 }}>
+        <View className="absolute left-[-70] top-[-20] h-60 w-60 rounded-full bg-violet-500/20" />
+        <View className="absolute right-[-90] top-52 h-72 w-72 rounded-full bg-fuchsia-500/15" />
+
+        <KeyboardAvoidingView
+          className="flex-1"
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          {/* Logo */}
-          <View className="items-center mb-10">
-            <LinearGradient
-              colors={['#7c3aed', '#ec4899']}
-              className="w-20 h-20 rounded-3xl items-center justify-center mb-4"
-            >
-              <Ionicons name="sparkles" size={36} color="white" />
-            </LinearGradient>
-            <Text className="text-3xl font-bold text-white">AuraSnap</Text>
-            <Text className="text-sm text-gray-400 mt-1">Discover your energy</Text>
-          </View>
+          <ScrollView
+            className="flex-1 px-6"
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 24 }}
+          >
+            <View className="mb-8 items-center">
+              <LinearGradient
+                colors={['#7c3aed', '#ec4899']}
+                className="mb-4 h-20 w-20 items-center justify-center rounded-3xl"
+              >
+                <Ionicons name="sparkles" size={36} color="white" />
+              </LinearGradient>
+              <Text className="text-3xl font-bold text-white">AuraSnap</Text>
+              <Text className="mt-1 text-sm text-slate-300">Discover your energy, instantly</Text>
+            </View>
 
-          {/* Form */}
-          <View className="w-full">
-            <Text className="text-xl font-bold text-white mb-1">Welcome back</Text>
-            <Text className="text-sm text-gray-400 mb-6">Sign in to your account</Text>
+            <View className="mb-5 rounded-3xl border border-white/10 bg-white/5 p-5">
+              <Text className="text-xl font-bold text-white">Welcome back</Text>
+              <Text className="mt-1 text-sm text-slate-300">Sign in to continue your aura journey</Text>
 
-            <Input
-              label="Email"
-              placeholder="email@example.com"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
+              <View className="mt-5">
+                <Input
+                  label="Email"
+                  placeholder="email@example.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
 
-            <Input
-              label="Password"
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-
-            {error ? (
-              <View className="bg-red-900/30 rounded-xl p-3 mb-4 border border-red-500/20">
-                <Text className="text-red-400 text-sm">{error}</Text>
+                <Input
+                  label="Password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                />
               </View>
-            ) : null}
 
-            <Button
-              onPress={handleLogin}
-              disabled={isLoading}
-              variant="primary"
-              className="w-full mb-3"
-            >
-              {isLoading ? <ActivityIndicator size="small" color="#ffffff" /> : 'Sign In'}
-            </Button>
+              {error ? (
+                <View className="mb-4 rounded-xl border border-red-500/30 bg-red-500/15 p-3">
+                  <Text className="text-sm text-red-300">{error}</Text>
+                </View>
+              ) : null}
 
-            {/* Guest Mode */}
+              <Button
+                onPress={handleLogin}
+                disabled={isLoading || isGuestLoading}
+                variant="primary"
+                className="w-full"
+              >
+                {isLoading ? <ActivityIndicator size="small" color="#ffffff" /> : 'Sign In'}
+              </Button>
+            </View>
+
             <Pressable
+              disabled={isLoading || isGuestLoading}
               onPress={handleGuestMode}
-              className="w-full border border-gray-700 rounded-2xl py-3.5 items-center mb-6"
+              className={`mb-6 rounded-2xl border border-violet-300/25 bg-violet-500/10 px-4 py-3.5 ${
+                isLoading || isGuestLoading ? 'opacity-60' : ''
+              }`}
             >
-              <Text className="text-gray-300 font-medium">Try Without Account</Text>
+              <Text className="text-center text-base font-semibold text-violet-200">
+                {isGuestLoading ? 'Entering Guest Mode...' : 'Continue as Guest'}
+              </Text>
+              <Text className="mt-1 text-center text-xs text-violet-200/80">3 free scans, no card, no account</Text>
             </Pressable>
 
-            <View className="flex-row justify-center items-center">
-              <Text className="text-gray-500">Don't have an account? </Text>
+            <View className="flex-row items-center justify-center">
+              <Text className="text-slate-400">Don't have an account? </Text>
               <Pressable onPress={() => router.push('/(auth)/register')}>
-                <Text className="text-violet-400 font-semibold">Sign Up</Text>
+                <Text className="font-semibold text-violet-300">Sign Up</Text>
               </Pressable>
             </View>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </LinearGradient>
+    </SafeAreaView>
   );
 }

@@ -3,6 +3,7 @@ import { View, Text, Pressable } from 'react-native';
 import { Slot, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { Easing, FadeIn, FadeOut } from 'react-native-reanimated';
 import { useAuth } from '../../contexts/AuthContext';
 import { hapticSelection } from '../../lib/haptics';
 
@@ -37,39 +38,50 @@ export default function ProtectedLayout() {
   }
 
   return (
-    <View className="flex-1 bg-gray-950">
-      <Slot />
+    <View className="flex-1 bg-[#050816]">
+      <Animated.View
+        key={pathname}
+        entering={FadeIn.duration(240).easing(Easing.out(Easing.cubic))}
+        exiting={FadeOut.duration(180).easing(Easing.in(Easing.cubic))}
+        style={{ flex: 1 }}
+      >
+        <Slot />
+      </Animated.View>
       {!isDetailScreen && (
         <View
-          className="flex-row bg-gray-950 border-t border-gray-800/50 px-2"
-          style={{ paddingBottom: insets.bottom || 16 }}
+          className="px-4"
+          style={{ paddingBottom: (insets.bottom || 12) + 8 }}
         >
-          {TABS.map((tab) => {
-            const isActive = pathname === `/${tab.name}` || pathname === `/(protected)/${tab.name}`;
-            return (
-              <Pressable
-                key={tab.name}
-                onPress={() => {
-                  hapticSelection();
-                  router.push(`/(protected)/${tab.name}` as any);
-                }}
-                className="flex-1 items-center pt-3 pb-1"
-              >
-                <Ionicons
-                  name={(isActive ? tab.icon : tab.iconOutline) as any}
-                  size={22}
-                  color={isActive ? '#8b5cf6' : '#6b7280'}
-                />
-                <Text
-                  className={`text-[10px] mt-1 font-medium ${
-                    isActive ? 'text-violet-400' : 'text-gray-500'
-                  }`}
+          <View className="flex-row rounded-2xl border border-white/10 bg-[#0a1130]/95 px-2 py-2">
+            {TABS.map((tab) => {
+              const isActive = pathname === `/${tab.name}` || pathname === `/(protected)/${tab.name}`;
+              return (
+                <Pressable
+                  key={tab.name}
+                  onPress={() => {
+                    const target = `/(protected)/${tab.name}` as any;
+                    if (isActive) return;
+                    hapticSelection();
+                    router.navigate(target);
+                  }}
+                  className={`flex-1 items-center rounded-xl py-2 ${isActive ? 'bg-violet-500/20' : ''}`}
                 >
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  <Ionicons
+                    name={(isActive ? tab.icon : tab.iconOutline) as any}
+                    size={22}
+                    color={isActive ? '#c4b5fd' : '#64748b'}
+                  />
+                  <Text
+                    className={`mt-1 text-[10px] font-medium ${
+                      isActive ? 'text-violet-300' : 'text-slate-500'
+                    }`}
+                  >
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       )}
     </View>

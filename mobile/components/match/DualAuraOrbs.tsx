@@ -1,144 +1,216 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, Animated, Easing } from 'react-native';
+import React, { useEffect, useMemo } from 'react';
+import { Pressable, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+import { hapticLight } from '../../lib/haptics';
+import AuraOrb from '../aura/AuraOrb';
+import { getAuraTheme } from '../aura/auraTheme';
+
+type OrbSize = 'sm' | 'md' | 'lg';
 
 interface DualAuraOrbsProps {
   userColor: string;
   friendColor: string;
   compatibilityScore: number;
+  userName?: string;
+  friendName?: string;
+  showParticles?: boolean;
+  onUserOrbPress?: () => void;
+  onFriendOrbPress?: () => void;
+  size?: OrbSize;
 }
 
-const colorHex: Record<string, string> = {
-  red: '#ef4444',
-  orange: '#f97316',
-  yellow: '#eab308',
-  green: '#22c55e',
-  blue: '#3b82f6',
-  indigo: '#6366f1',
-  violet: '#8b5cf6',
-  white: '#f8fafc',
-  gold: '#fbbf24',
-  pink: '#ec4899',
+interface FlowParticleProps {
+  index: number;
+  width: number;
+  color: string;
+}
+
+const SIZE_MAP: Record<OrbSize, { orb: number; beam: number }> = {
+  sm: { orb: 86, beam: 82 },
+  md: { orb: 108, beam: 110 },
+  lg: { orb: 126, beam: 132 },
 };
+
+function compatibilityColor(score: number) {
+  if (score >= 80) return '#22c55e';
+  if (score >= 60) return '#38bdf8';
+  if (score >= 45) return '#f59e0b';
+  return '#ef4444';
+}
+
+function FlowParticle({ index, width, color }: FlowParticleProps) {
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withDelay(
+      index * 220,
+      withRepeat(withTiming(1, { duration: 1450, easing: Easing.linear }), -1, false)
+    );
+  }, [index, progress]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: -width / 2 + progress.value * width }],
+    opacity: 0.2 + (1 - Math.abs(progress.value - 0.5) * 2) * 0.7,
+  }));
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        animatedStyle,
+        {
+          position: 'absolute',
+          width: 8,
+          height: 8,
+          borderRadius: 4,
+          backgroundColor: `${color}DD`,
+        },
+      ]}
+    />
+  );
+}
 
 export default function DualAuraOrbs({
   userColor,
   friendColor,
   compatibilityScore,
+  userName = 'You',
+  friendName = 'Friend',
+  showParticles = true,
+  onUserOrbPress,
+  onFriendOrbPress,
+  size = 'md',
 }: DualAuraOrbsProps) {
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const connectionAnim = useRef(new Animated.Value(0.3)).current;
+  const { orb, beam } = SIZE_MAP[size];
+
+  const userTheme = useMemo(() => getAuraTheme(userColor), [userColor]);
+  const friendTheme = useMemo(() => getAuraTheme(friendColor), [friendColor]);
+  const scoreColor = compatibilityColor(compatibilityScore);
+
+  const beamOpacity = useSharedValue(0.35);
+  const fusionGlow = useSharedValue(0.1);
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.1,
-          duration: 1500,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1500,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    beamOpacity.value = withRepeat(
+      withSequence(withTiming(0.9, { duration: 900 }), withTiming(0.35, { duration: 900 })),
+      -1,
+      true
+    );
 
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(connectionAnim, {
-          toValue: 0.8,
-          duration: 1000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(connectionAnim, {
-          toValue: 0.3,
-          duration: 1000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, []);
+    if (compatibilityScore >= 85) {
+      fusionGlow.value = withRepeat(
+        withSequence(withTiming(0.5, { duration: 700 }), withTiming(0.12, { duration: 700 })),
+        -1,
+        true
+      );
+    } else {
+      fusionGlow.value = withTiming(0.12, { duration: 260 });
+    }
+  }, [beamOpacity, compatibilityScore, fusionGlow]);
 
-  const userHex = colorHex[userColor] || colorHex.violet;
-  const friendHex = colorHex[friendColor] || colorHex.pink;
+  const beamStyle = useAnimatedStyle(() => ({
+    opacity: beamOpacity.value,
+  }));
+
+  const fusionStyle = useAnimatedStyle(() => ({
+    opacity: fusionGlow.value,
+    transform: [{ scale: 0.9 + fusionGlow.value * 0.35 }],
+  }));
+
+  const handleUserPress = () => {
+    if (!onUserOrbPress) return;
+    hapticLight();
+    onUserOrbPress();
+  };
+
+  const handleFriendPress = () => {
+    if (!onFriendOrbPress) return;
+    hapticLight();
+    onFriendOrbPress();
+  };
 
   return (
-    <View className="items-center">
+    <View className="items-center rounded-3xl border border-white/10 bg-[#0e1433]/82 px-4 py-5">
       <View className="flex-row items-center justify-center">
-        {/* User Orb */}
         <View className="items-center">
-          <Animated.View
-            style={{
-              width: 100,
-              height: 100,
-              borderRadius: 50,
-              backgroundColor: userHex,
-              transform: [{ scale: pulseAnim }],
-              shadowColor: userHex,
-              shadowOffset: { width: 0, height: 0 },
-              shadowOpacity: 0.6,
-              shadowRadius: 20,
-            }}
+          <AuraOrb
+            colorName={userColor}
+            size={orb}
+            label={userName}
+            animated
+            showParticles={showParticles}
+            onPress={onUserOrbPress ? handleUserPress : undefined}
           />
-          <Text className="mt-3 text-sm capitalize text-gray-400">You</Text>
-          <Text className="text-lg font-semibold capitalize text-white">
-            {userColor}
-          </Text>
+          <Text className="mt-1 text-xs capitalize text-slate-400">{userColor}</Text>
         </View>
 
-        {/* Connection Line */}
-        <View className="mx-4 items-center">
+        <View className="mx-3 items-center justify-center" style={{ width: beam }}>
           <Animated.View
-            style={{
-              width: 60,
-              height: 4,
-              borderRadius: 2,
-              opacity: connectionAnim,
-              backgroundColor:
-                compatibilityScore >= 70 ? '#22c55e' : compatibilityScore >= 50 ? '#f59e0b' : '#ef4444',
-            }}
+            pointerEvents="none"
+            style={[
+              fusionStyle,
+              {
+                position: 'absolute',
+                width: 52,
+                height: 52,
+                borderRadius: 26,
+                backgroundColor: `${scoreColor}55`,
+              },
+            ]}
           />
+
+          <Animated.View style={[beamStyle, { width: beam, height: 8, borderRadius: 999, overflow: 'hidden' }]}>
+            <LinearGradient
+              colors={[userTheme.primary, scoreColor, friendTheme.primary]}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={{ flex: 1 }}
+            />
+          </Animated.View>
+
+          {showParticles ? (
+            <View className="absolute items-center justify-center" style={{ width: beam, height: 24 }}>
+              {Array.from({ length: 4 }).map((_, index) => (
+                <FlowParticle key={`flow-${index}`} index={index} width={beam - 10} color={scoreColor} />
+              ))}
+            </View>
+          ) : null}
+
           <View
-            style={{
-              position: 'absolute',
-              width: 20,
-              height: 20,
-              borderRadius: 10,
-              backgroundColor: '#1f2937',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+            className="absolute items-center justify-center rounded-full border border-white/25 bg-[#0f1a3f]"
+            style={{ width: 38, height: 38 }}
           >
-            <Text className="text-xs">💫</Text>
+            <Text className="text-xs font-bold" style={{ color: scoreColor }}>
+              {Math.max(0, Math.min(100, Math.round(compatibilityScore)))}%
+            </Text>
           </View>
         </View>
 
-        {/* Friend Orb */}
         <View className="items-center">
-          <Animated.View
-            style={{
-              width: 100,
-              height: 100,
-              borderRadius: 50,
-              backgroundColor: friendHex,
-              transform: [{ scale: pulseAnim }],
-              shadowColor: friendHex,
-              shadowOffset: { width: 0, height: 0 },
-              shadowOpacity: 0.6,
-              shadowRadius: 20,
-            }}
+          <AuraOrb
+            colorName={friendColor}
+            size={orb}
+            label={friendName}
+            animated
+            showParticles={showParticles}
+            onPress={onFriendOrbPress ? handleFriendPress : undefined}
           />
-          <Text className="mt-3 text-sm capitalize text-gray-400">Friend</Text>
-          <Text className="text-lg font-semibold capitalize text-white">
-            {friendColor}
-          </Text>
+          <Text className="mt-1 text-xs capitalize text-slate-400">{friendColor}</Text>
         </View>
       </View>
+
+      <Text className="mt-4 text-sm font-semibold" style={{ color: scoreColor }}>
+        {compatibilityScore >= 85 ? 'Fusion Mode Active' : 'Energy Bridge Active'}
+      </Text>
     </View>
   );
 }

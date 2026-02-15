@@ -5,25 +5,31 @@ import Purchases, {
 } from 'react-native-purchases';
 
 const API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_KEY;
+let isInitialized = false;
 
 export type { PurchasesPackage, PurchasesOffering };
 
-export const initializePurchases = async () => {
+export const initializePurchases = async (): Promise<boolean> => {
+  if (isInitialized) return true;
   if (!API_KEY) {
-    console.warn('RevenueCat API key not configured');
-    return;
+    console.warn('RevenueCat API key not configured — running in mock mode');
+    return false;
   }
 
   try {
     Purchases.setLogLevel(LOG_LEVEL.DEBUG);
     Purchases.configure({ apiKey: API_KEY });
+    isInitialized = true;
     console.log('RevenueCat initialized successfully');
+    return true;
   } catch (error) {
     console.error('Failed to initialize RevenueCat:', error);
+    return false;
   }
 };
 
 export const getOfferings = async (): Promise<PurchasesOffering | null> => {
+  if (!isInitialized) return null;
   try {
     const offerings = await Purchases.getOfferings();
     return offerings.current;
@@ -36,6 +42,7 @@ export const getOfferings = async (): Promise<PurchasesOffering | null> => {
 export const purchasePackage = async (
   pkg: PurchasesPackage,
 ): Promise<boolean> => {
+  if (!isInitialized) return false;
   try {
     const { customerInfo } = await Purchases.purchasePackage(pkg);
     return customerInfo.entitlements.active.premium !== undefined;
@@ -48,6 +55,7 @@ export const purchasePackage = async (
 };
 
 export const restorePurchases = async (): Promise<boolean> => {
+  if (!isInitialized) return false;
   try {
     const customerInfo = await Purchases.restorePurchases();
     return customerInfo.entitlements.active.premium !== undefined;
@@ -58,6 +66,7 @@ export const restorePurchases = async (): Promise<boolean> => {
 };
 
 export const checkSubscriptionStatus = async (): Promise<boolean> => {
+  if (!isInitialized) return false;
   try {
     const customerInfo = await Purchases.getCustomerInfo();
     return customerInfo.entitlements.active.premium !== undefined;

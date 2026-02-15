@@ -6,30 +6,33 @@
     "owner": "ahmetcoskunkizilkaya",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "appfactory",
-    "userInterfaceStyle": "light",
+    "scheme": "aurasnap",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#050816"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ahmetcoskunkizilkaya.aurasnap",
       "buildNumber": "1",
+      "usesAppleSignIn": true,
       "config": {
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
         "NSCameraUsageDescription": "AuraSnap uses the camera to capture your photo for aura color analysis.",
-        "NSPhotoLibraryUsageDescription": "AuraSnap accesses your photos to analyze your aura color personality."
+        "NSPhotoLibraryUsageDescription": "AuraSnap accesses your photos to analyze your aura color personality.",
+        "NSPhotoLibraryAddUsageDescription": "AuraSnap saves generated aura cards to your photo library when you choose to export.",
+        "NSFaceIDUsageDescription": "AuraSnap uses Face ID to quickly unlock your account and protect your readings."
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#050816"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -39,7 +42,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-apple-authentication"
     ],
     "runtimeVersion": {
       "policy": "appVersion"
